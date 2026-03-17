@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AAIDD Leerspel - Verstandelijke Beperking</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Arial, sans-serif; font-size: 13px; background: #f0f4f8; color: #222; }
+h1 { text-align: center; padding: 16px 8px 8px; font-size: 17px; color: #1a3a5c; }
+.subtitle { text-align: center; color: #555; font-size: 12px; padding-bottom: 10px; }
+
+.level-bar { display: flex; justify-content: center; gap: 8px; padding: 10px; background: #1a3a5c; flex-wrap: wrap; }
+.level-btn { padding: 7px 18px; border: 2px solid #fff; background: transparent; color: #fff; border-radius: 20px; cursor: pointer; font-size: 12px; font-weight: bold; }
+.level-btn.active { background: #fff; color: #1a3a5c; }
+.level-desc { text-align: center; font-size: 11px; color: #666; padding: 6px; background: #e8eef5; }
+
+.table-wrap { overflow-x: auto; padding: 12px; }
+table { border-collapse: collapse; width: 100%; min-width: 880px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+th { background: #1a3a5c; color: #fff; padding: 9px 8px; text-align: center; font-size: 12px; }
+th:nth-child(1) { text-align: left; min-width: 130px; }
+th:nth-child(2) { text-align: left; min-width: 170px; }
+th:nth-child(n+3) { min-width: 155px; }
+
+td { border: 1px solid #ccc; padding: 5px; vertical-align: top; }
+td.domain-cell { font-weight: bold; background: #e8eef5; font-size: 11px; color: #1a3a5c; }
+td.sub-cell { background: #f5f8fb; font-size: 11px; color: #444; line-height: 1.3; }
+
+td.drop-zone { min-height: 75px; background: #fafafa; position: relative; transition: background 0.2s; }
+td.drop-zone.drag-over { background: #d0e8ff !important; outline: 2px dashed #0066cc; }
+td.drop-zone.correct { outline: 3px solid #28a745 !important; background: #fafafa; }
+td.drop-zone.wrong { outline: 3px solid #dc3545 !important; background: #fafafa; }
+
+.pool-wrap { padding: 0 12px 12px; }
+.pool-label { font-weight: bold; color: #1a3a5c; font-size: 12px; padding: 8px 0 5px; }
+.pool-hint { font-size: 11px; color: #888; margin-bottom: 6px; }
+.tile-pool { display: flex; flex-wrap: wrap; gap: 7px; background: #fff; padding: 10px; border: 1px solid #ccc; border-radius: 8px; min-height: 60px; }
+
+.tile { background: #1a3a5c; color: #fff; padding: 7px 9px; border-radius: 6px; cursor: grab; font-size: 11px; max-width: 200px; line-height: 1.4; user-select: none; }
+.tile:hover { background: #2c5282; }
+.tile.dragging { opacity: 0.4; }
+
+.placed-tile { background: #2c5f9e; color: #fff; padding: 6px 8px; border-radius: 4px; font-size: 11px; line-height: 1.4; cursor: grab; width: 100%; display: block; user-select: none; }
+.placed-tile:hover { background: #1a3a5c; }
+
+.action-bar { display: flex; justify-content: center; gap: 10px; padding: 10px; flex-wrap: wrap; }
+.btn { padding: 9px 22px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; }
+.btn-check { background: #28a745; color: #fff; }
+.btn-check:hover { background: #218838; }
+.btn-reset { background: #6c757d; color: #fff; }
+.btn-reset:hover { background: #545b62; }
+.score { text-align: center; font-size: 15px; font-weight: bold; padding: 8px; min-height: 30px; color: #1a3a5c; }
+.warning { background: #fff3cd; border: 1px solid #ffc107; padding: 8px 12px; margin: 8px 12px; border-radius: 6px; font-size: 11px; color: #555; }
+</style>
+</head>
+<body>
+<h1>AAIDD Leerspel - Verstandelijke Beperking</h1>
+<p class="subtitle">Sleep de tegels naar de juiste cel. Dubbelklik op een geplaatste tegel om hem terug te sturen.</p>
+
+<div class="level-bar">
+  <button class="level-btn active" onclick="setLevel(1)">Niveau 1</button>
+  <button class="level-btn" onclick="setLevel(2)">Niveau 2</button>
+  <button class="level-btn" onclick="setLevel(3)">Niveau 3</button>
+  <button class="level-btn" onclick="setLevel(4)">Niveau 4</button>
+</div>
+<div class="level-desc" id="level-desc"></div>
+
+<div class="table-wrap">
+  <table id="game-table">
+    <thead>
+      <tr>
+        <th>Domein</th>
+        <th>Subdomein</th>
+        <th>DVB</th>
+        <th>EVB</th>
+        <th>MVB</th>
+        <th>LVB</th>
+      </tr>
+    </thead>
+    <tbody id="table-body"></tbody>
+  </table>
+</div>
+
+<div class="pool-wrap">
+  <div class="pool-label">Tegels - sleep naar de juiste cel:</div>
+  <div class="pool-hint">Dubbelklik op een geplaatste tegel om hem terug te sturen naar de pool.</div>
+  <div class="tile-pool" id="tile-pool"></div>
+</div>
+
+<div class="action-bar">
+  <button class="btn btn-check" onclick="checkAnswers()">Controleer antwoorden</button>
+  <button class="btn btn-reset" onclick="setLevel(currentLevel)">Opnieuw</button>
+</div>
+<div class="score" id="score"></div>
+<p class="warning">Let op: deze tabel is een vertrekpunt, geen statisch beeld. In de praktijk kan iemand op het ene domein hoger functioneren dan op het andere.</p>
+
+<script>
+const COLS = ["DVB","EVB","MVB","LVB"];
+
+const levelDescs = {
+  1: "Alle 32 tegels aanwezig | Volledige tekst op elke tegel",
+  2: "16 tegels aanwezig | Volledige tekst op elke tegel",
+  3: "Alle 32 tegels aanwezig | Alleen kernwoorden op de tegels",
+  4: "16 tegels aanwezig | Alleen kernwoorden op de tegels"
+};
+
+const tableData = [
+  {
+    domain: "Verstandelijke mogelijkheden",
+    subdomain: "Verstandelijke ontwikkelingsleeftijd (DSM IV-tr)",
+    cells: {
+      DVB: { full: "Onder 2 jaar", short: "< 2 jaar" },
+      EVB: { full: "2 - 4 jaar", short: "2 - 4 jaar" },
+      MVB: { full: "4 - 7 jaar", short: "4 - 7 jaar" },
+      LVB: { full: "7 - 11 jaar", short: "7 - 11 jaar" }
+    }
+  },
+  {
+    domain: "Verstandelijke mogelijkheden",
+    subdomain: "Cognitieve ontwikkelingsfase (Piaget)",
+    cells: {
+      DVB: { full: "Sensori-motorisch: zintuiglijke prikkels; eenvoudige oorzaak-gevolg na herhaling; geen symbool- of abstract denken; enkel hier en nu", short: "Sensori-motorisch" },
+      EVB: { full: "Pre-operationeel (preconceptueel): associatief denken; begin oorzaak-gevolg; geen abstracte info; hier-en-nu", short: "Pre-operationeel (preconceptueel)" },
+      MVB: { full: "Pre-operationeel (intuïtief): denkfouten; stereotiep/zwart-wit denken; oorzaak-gevolg niet altijd logisch; concreet denken", short: "Pre-operationeel (intuïtief)" },
+      LVB: { full: "Concreet operationeel: concreet denken; situatiespecifiek; lager denktempo; beperkter werkgeheugen; moeite met abstractie", short: "Concreet operationeel" }
+    }
+  },
+  {
+    domain: "Conceptuele adaptieve vaardigheden",
+    subdomain: "Kenmerken cognitieve ontwikkeling (geheugen, schoolse vaardigheden, begripsvermogen)",
+    cells: {
+      DVB: { full: "Begin associaties: geen schoolse vaardigheden; sorteren op kleur/vorm aanleerbaar; leren enkel in het hier en nu", short: "Begin associaties" },
+      EVB: { full: "Naam schrijven soms mogelijk; geen lezen/rekenen; prenten benoemen en ordenen; moeite met abstracte concepten; ondersteunende communicatie", short: "Naam schrijven soms mogelijk" },
+      MVB: { full: "Generalisatieproblemen: lezen/schrijven/rekenen niet verworven; prenten als hulpmiddel; tijdsoriëntatie (gisteren/morgen); praktische vaardigheden aanleerbaar", short: "Generalisatieproblemen, initiatief" },
+      LVB: { full: "Informatieverwerking: lezen, schrijven en basisrekenen aanwezig; moeite met grammatica en grote getallen; concreet probleemoplossend vermogen", short: "Informatieverwerking, EF, probleemoplossing" }
+    }
+  },
+  {
+    domain: "Conceptuele adaptieve vaardigheden",
+    subdomain: "Communicatieve vaardigheden (taalgebruik, taalbegrip, interactie)",
+    cells: {
+      DVB: { full: "Prelinguaal / Functioneel: brabbeltaal of gebaren (geen SMOG); enkel functioneel taalgebruik voor eigen noden; taalbegrip via mimiek na herhaling", short: "Prelinguaal / Vroeglinguaal / Functionele taal" },
+      EVB: { full: "Vroeglinguaal: korte meerwoordzinnen + gebaren/mimiek; beperkt tijdsbesef; beperkte woordenschat; ondersteunende communicatie (prenten, gebaren)", short: "Vroeglinguaal / Begin sociale taal / OC" },
+      MVB: { full: "Verstaanbaar taalgebruik; woordenschat breidt uit; grammatica soms moeilijk; moeite met sociale signalen; communicatie wordt tweerichtingsverkeer", short: "Verstaanbaar taalgebruik; tweerichtingsverkeer" },
+      LVB: { full: "Praten over alledaagse onderwerpen; taalbegrip lager dan het lijkt; moeite met sarcasme/spreekwoorden; eigen meningen maar rigide", short: "Alledaagse onderwerpen; taalbegrip lager dan het lijkt" }
+    }
+  },
+  {
+    domain: "Sociale adaptieve vaardigheden",
+    subdomain: "Sociaal-emotionele ontwikkeling",
+    cells: {
+      DVB: { full: "Adaptatie / Socialisatie: grote moeite met prikkelregulatie; moeilijk hechte band opbouwen; vastklampen aan vertrouwden; sterk egocentrisch; structuur en routines essentieel", short: "Adaptatie / Socialisatie" },
+      EVB: { full: "Socialisatie / Individuatie: tonen eigen voorkeuren; interesse in leeftijdsgenoten maar moeilijk gepast omgaan; veilig/onveilig niet inschatten; permanent toezicht nodig", short: "(Socialisatie) / Individuatie / (Identificatie)" },
+      MVB: { full: "Individuatie / Identificatie: willen een gewaardeerd eigen ik; vergelijken met anderen; begin van normbesef (fragiel); interesse in ander geslacht en relaties", short: "(Individuatie) / Identificatie / (Realiteitsbewustwording)" },
+      LVB: { full: "Identificatie / Realiteitsbewustwording: bewust van maatschappelijke normen; willen deel uitmaken van de maatschappij; impulsiviteit; risico op grensoverschrijdend gedrag of slachtofferschap", short: "(Identificatie) / Realiteitsbewustwording" }
+    }
+  },
+  {
+    domain: "Sociale adaptieve vaardigheden",
+    subdomain: "Morele ontwikkeling (Kohlberg / Piaget)",
+    cells: {
+      DVB: { full: "Geen regels / Lust-onlust: geen besef van regels; handelen vanuit directe behoeften; niet te sturen via afspraken; wel via herhaling en routine", short: "Geen regels / Lust-onlust" },
+      EVB: { full: "Preconventioneel / Externe sturing: begin begrip van goed/fout; volledig gebaseerd op straf/beloning; kan niet inschatten wat mag; toezicht nodig", short: "Preconventioneel / Externe sturing" },
+      MVB: { full: "Preconventioneel / Regels van anderen: regels opgelegd door autoriteit; gehoorzaamheid en strafvermijding centraal; begin normbesef maar fragiel; belang van voorbeeldfiguren", short: "Preconventioneel / Regels van anderen" },
+      LVB: { full: "Conventioneel: begrijpen maatschappelijke regels; willen zich aanpassen maar oordelen rigide; moeite met genuanceerd moreel redeneren; risico op verkeerde keuzes onder groepsdruk", short: "Conventioneel" }
+    }
+  },
+  {
+    domain: "Praktische adaptieve vaardigheden",
+    subdomain: "Zelfredzaamheid (ADL / HDL / MDL)",
+    cells: {
+      DVB: { full: "Volledige zorgafhankelijkheid: permanente ondersteuning bij ADL (kleden, hygiëne, eten); kleine deeltaakjes soms mogelijk; mogelijks incontinentie en motorische beperkingen", short: "Volledige zorgafhankelijkheid" },
+      EVB: { full: "ADL met toezicht: zelfverzorging met aanwijzingen; HDL en MDL niet zelfstandig; vaardigheden aanleerbaar via lange herhaling", short: "ADL met toezicht en aanwijzingen" },
+      MVB: { full: "Arbeidsgericht: ADL met begeleiding; huishoudelijke taken aanleerbaar; dagprogramma via pictogrammenschema; dagelijkse routine met ondersteuning", short: "Arbeidsgericht" },
+      LVB: { full: "Regulier: ADL en HDL veelal automatisme; zelfstandig wonen, busgebruik en boodschappen mogelijk; moeilijker bij verandering; risico op verwaarlozing", short: "Regulier" }
+    }
+  },
+  {
+    domain: "Praktische adaptieve vaardigheden",
+    subdomain: "Participatie werk en vrije tijd",
+    cells: {
+      DVB: { full: "Lichaamsgebonden / Associatief: snoezelen, zwemmen, massage, wandelen; betrokken worden zonder meehandelen; intensieve ondersteuning nodig", short: "Lichaamsgebonden / Associatief" },
+      EVB: { full: "Bezigheidsgericht / Ervaringsgericht: keuken, tekenen, tuinieren; genieten van taakjes op eigen tempo; niet werkbaar onder tijds- of kwaliteitsdruk", short: "Bezigheidsgericht / Ervaringsgericht" },
+      MVB: { full: "Arbeidsgericht: aanleren sociale en praktische vaardigheden; dagbesteding met begeleiding; secundair onderwijs gericht op huishoudelijke en sociale vaardigheden", short: "Arbeidsgericht (dagbesteding)" },
+      LVB: { full: "Regulier: regulier werk in principe mogelijk; maximale maatschappelijke participatie als doel; ondersteuning van reguliere diensten als uitgangspunt", short: "Regulier (werk mogelijk)" }
+    }
+  }
+];
+
+// Cells that are NOT in the pool for levels 2 and 4 (16 out of 32)
+const absentCells = [
+  [0,"DVB"],[0,"MVB"],
+  [1,"EVB"],[1,"LVB"],
+  [2,"DVB"],[2,"EVB"],
+  [3,"MVB"],[3,"LVB"],
+  [4,"DVB"],[4,"MVB"],
+  [5,"EVB"],[5,"LVB"],
+  [6,"DVB"],[6,"EVB"],
+  [7,"MVB"],[7,"LVB"]
+];
+
+function isAbsent(rIdx, col) {
+  return absentCells.some(([r,c]) => r === rIdx && c === col);
+}
+
+let currentLevel = 1;
+let draggedTile = null;
+let draggedFromPool = false;
+
+function setLevel(n) {
+  currentLevel = n;
+  document.getElementById("score").textContent = "";
+  document.querySelectorAll(".level-btn").forEach((b,i) => b.classList.toggle("active", i+1===n));
+  document.getElementById("level-desc").textContent = levelDescs[n];
+  buildTable();
+  buildPool();
+}
+
+function buildTable() {
+  const tbody = document.getElementById("table-body");
+  tbody.innerHTML = "";
+
+  tableData.forEach((row, rIdx) => {
+    const tr = document.createElement("tr");
+    const isDomainFirst = rIdx === 0 || tableData[rIdx-1].domain !== row.domain;
+    const domainSpan = tableData.filter(r => r.domain === row.domain).length;
+
+    if (isDomainFirst) {
+      const td = document.createElement("td");
+      td.className = "domain-cell";
+      td.rowSpan = domainSpan;
+      td.textContent = row.domain;
+      tr.appendChild(td);
+    }
+
+    const tdSub = document.createElement("td");
+    tdSub.className = "sub-cell";
+    tdSub.textContent = row.subdomain;
+    tr.appendChild(tdSub);
+
+    COLS.forEach(col => {
+      const td = document.createElement("td");
+      td.className = "drop-zone";
+      td.id = "dz-" + rIdx + "-" + col;
+      td.dataset.row = rIdx;
+      td.dataset.col = col;
+      td.addEventListener("dragover", e => { e.preventDefault(); td.classList.add("drag-over"); });
+      td.addEventListener("dragleave", () => td.classList.remove("drag-over"));
+      td.addEventListener("drop", onDrop);
+      tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+  });
+}
+
+function buildPool() {
+  const pool = document.getElementById("tile-pool");
+  pool.innerHTML = "";
+  const useShort = currentLevel >= 3;
+  const useAbsent = currentLevel === 2 || currentLevel === 4;
+
+  let tiles = [];
+  tableData.forEach((row, rIdx) => {
+    COLS.forEach(col => {
+      if (useAbsent && isAbsent(rIdx, col)) return;
+      tiles.push({ rIdx, col, text: useShort ? row.cells[col].short : row.cells[col].full });
+    });
+  });
+
+  for (let i = tiles.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i+1));
+    [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
+  }
+
+  tiles.forEach(t => pool.appendChild(makeTile(t.rIdx, t.col, t.text, "tile")));
+}
+
+function makeTile(rIdx, col, text, cls) {
+  const div = document.createElement("div");
+  div.className = cls;
+  div.draggable = true;
+  div.textContent = text;
+  div.dataset.rIdx = rIdx;
+  div.dataset.col = col;
+  div.dataset.text = text;
+  div.addEventListener("dragstart", e => {
+    draggedTile = div;
+    draggedFromPool = div.classList.contains("tile");
+    div.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+  });
+  div.addEventListener("dragend", () => div.classList.remove("dragging"));
+  if (cls === "placed-tile") {
+    div.addEventListener("dblclick", () => returnToPool(div));
+  }
+  return div;
+}
+
+function onDrop(e) {
+  e.preventDefault();
+  const zone = e.currentTarget;
+  zone.classList.remove("drag-over", "correct", "wrong");
+  if (!draggedTile) return;
+
+  const existing = zone.querySelector(".placed-tile");
+  if (existing) returnToPool(existing);
+
+  if (draggedFromPool) {
+    draggedTile.remove();
+  } else {
+    const parent = draggedTile.parentElement;
+    if (parent) parent.classList.remove("correct", "wrong");
+    draggedTile.remove();
+  }
+
+  const placed = makeTile(draggedTile.dataset.rIdx, draggedTile.dataset.col, draggedTile.dataset.text, "placed-tile");
+  zone.appendChild(placed);
+  draggedTile = null;
+}
+
+function returnToPool(tile) {
+  const pool = document.getElementById("tile-pool");
+  const parent = tile.parentElement;
+  if (parent) parent.classList.remove("correct", "wrong");
+  const newTile = makeTile(tile.dataset.rIdx, tile.dataset.col, tile.dataset.text, "tile");
+  pool.appendChild(newTile);
+  tile.remove();
+}
+
+function checkAnswers() {
+  let correct = 0;
+  let total = 0;
+  const zones = document.querySelectorAll(".drop-zone");
+  zones.forEach(zone => {
+    zone.classList.remove("correct", "wrong");
+    const placed = zone.querySelector(".placed-tile");
+    if (placed) {
+      total++;
+      const ok = parseInt(placed.dataset.rIdx) === parseInt(zone.dataset.row) && placed.dataset.col === zone.dataset.col;
+      zone.classList.add(ok ? "correct" : "wrong");
+      if (ok) correct++;
+    }
+  });
+  document.getElementById("score").textContent = correct + " / " + total + " geplaatste tegels correct";
+}
+
+setLevel(1);
+</script>
+</body>
+</html>
